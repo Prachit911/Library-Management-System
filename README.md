@@ -31,7 +31,7 @@ library-management-system/
 │   │   ├── queue.controller.js
 │   │   └── user.controller.js
 │   │
-│   ├── services/                  # 🔥 Core Business Logic Layer
+│   ├── services/                  #  Core Business Logic Layer
 │   │   ├── auth.service.js
 │   │   ├── book.service.js
 │   │   ├── borrow.service.js      # (Transactions handled here)
