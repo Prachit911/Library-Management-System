@@ -12,78 +12,78 @@ A production-level backend system built with Node.js, Express, PostgreSQL, and P
 ```
 library-management-system/
 │
-├── prisma/                         # Prisma ORM (Database Layer)
-│   ├── schema.prisma               # Database schema (models & relations)
-│   ├── migrations/                 # Auto-generated migrations
-│   └── seed.js                     # Seed initial data
+├── prisma/
+│   ├── schema.prisma              # Database schema (single source of truth)
+│   ├── migrations/                # Auto-generated SQL migrations
+│   │   └── 20240101_init/
+│   │       └── migration.sql
+│   └── seed.js                    # Sample data for testing
 │
 ├── src/
 │   │
-│   ├── config/                     # Application configuration
-│   │   ├── prisma.js               # Prisma client instance
-│   │   ├── env.js                  # Environment variable loader
-│   │   └── constants.js            # App constants (fine rate, limits, etc.)
+│   ├── config/
+│   │   ├── database.js            # Prisma client initialization
+│   │   ├── constants.js           # App-wide constants
+│   │   │                          # (FINE_PER_DAY, BORROW_DAYS, etc.)
+│   │   └── config.js              # Environment-based configuration
 │   │
-│   ├── controllers/                # Request → Response handling (NO business logic)
-│   │   ├── auth.controller.js
-│   │   ├── book.controller.js
-│   │   ├── borrow.controller.js
-│   │   ├── queue.controller.js
-│   │   └── user.controller.js
+│   ├── controllers/               # HTTP request/response handlers
+│   │   ├── authController.js      # signup, login
+│   │   ├── bookController.js      # CRUD operations
+│   │   ├── borrowController.js    # borrow, return, history
+│   │   ├── queueController.js     # queue management
+│   │   └── userController.js      # user profile, fines
 │   │
-│   ├── services/                  #  Core Business Logic Layer
-│   │   ├── auth.service.js
-│   │   ├── book.service.js
-│   │   ├── borrow.service.js      # (Transactions handled here)
-│   │   ├── queue.service.js
-│   │   ├── fine.service.js
-│   │   └── user.service.js
+│   ├── services/                  # Business logic layer
+│   │   ├── authService.js         # Authentication logic
+│   │   ├── bookService.js         # Book management logic
+│   │   ├── borrowService.js       # CORE: Borrow/return logic
+│   │   ├── queueService.js        # Queue FIFO management
+│   │   ├── fineService.js         # Fine calculation logic
+│   │   └── notificationService.js # (Optional) Email/SMS notifications
 │   │
-│   ├── routes/                    # API Routes
-│   │   ├── auth.routes.js
-│   │   ├── book.routes.js
-│   │   ├── borrow.routes.js
-│   │   ├── queue.routes.js
-│   │   └── index.js               # Route aggregator
+│   ├── middleware/
+│   │   ├── authMiddleware.js      # JWT verification (protect route)
+│   │   ├── roleMiddleware.js      # RBAC (authorize roles)
+│   │   ├── validator.js           # Joi schema validation
+│   │   ├── errorHandler.js        # Global error handler
+│   │   └── rateLimiter.js         # Rate limiting middleware
 │   │
-│   ├── middleware/                # Request pipeline control
-│   │   ├── auth.middleware.js     # JWT verification
-│   │   ├── role.middleware.js     # Role-based access control
-│   │   ├── validation.middleware.js
-│   │   ├── error.middleware.js    # Global error handler
-│   │   └── rateLimit.middleware.js (optional)
+│   ├── routes/
+│   │   ├── index.js               # Route aggregator (imports all routes)
+│   │   ├── authRoutes.js          # POST /signup, /login
+│   │   ├── bookRoutes.js          # GET, POST, PUT, DELETE /books
+│   │   ├── borrowRoutes.js        # POST /borrow, /return, GET /history
+│   │   ├── queueRoutes.js         # GET /queues, DELETE /queues/:id
+│   │   └── userRoutes.js          # GET /profile, /fines
 │   │
-│   ├── validators/                # Request validation schemas
-│   │   ├── auth.validator.js
-│   │   ├── book.validator.js
-│   │   └── borrow.validator.js
+│   ├── utils/
+│   │   ├── asyncHandler.js        # Wraps async functions (error catching)
+│   │   ├── AppError.js            # Custom error class
+│   │   ├── responseHandler.js     # Standard API response format
+│   │   ├── logger.js              # Winston logger setup
+│   │   └── helpers.js             # Date calculations, etc.
 │   │
-│   ├── utils/                     # Reusable helper functions
-│   │   ├── jwt.js                 # JWT generation & verification
-│   │   ├── hash.js                # Password hashing utilities
-│   │   ├── apiResponse.js         # Standard API response format
-│   │   ├── asyncHandler.js        # Async error wrapper
-│   │   └── logger.js              # Logging (Winston/Morgan)
+│   ├── validators/                # Joi validation schemas
+│   │   ├── authValidator.js       # Signup/login schemas
+│   │   ├── bookValidator.js       # Book CRUD schemas
+│   │   └── borrowValidator.js     # Borrow/return schemas
 │   │
-│   ├── modules/                   # (Optional) Feature-based modular structure
-│   │   ├── auth/
-│   │   ├── books/
-│   │   ├── borrow/
-│   │   └── queue/
-│   │
-│   ├── app.js                     # Express app configuration
-│   └── server.js                  # Application entry point
+│   └── app.js                     # Express app setup (middleware, routes)
 │
-├── tests/                         # (Optional) Test cases
-│   ├── auth.test.js
-│   ├── borrow.test.js
-│   └── book.test.js
+├── tests/                         # (Optional) Unit & integration tests
+│   ├── unit/
+│   │   ├── services/
+│   │   └── utils/
+│   └── integration/
+│       └── api/
 │
-├── .env                           # Environment variables
-├── .env.example                   # Sample environment config
-├── package.json
-├── README.md
-└── .gitignore
+├── .env                           # Environment variables (NEVER commit!)
+├── .env.example                   # Template for .env
+├── .gitignore                     # Ignore node_modules, .env, etc.
+├── package.json                   # Dependencies and scripts
+├── server.js                      # Entry point (starts server)
+└── README.md                      # Project documentation
 ```
 
 
