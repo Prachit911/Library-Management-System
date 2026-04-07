@@ -1,13 +1,211 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
-generator client {
-  provider = "prisma-client"
-  output   = "../generated/prisma"
-}
+// prisma/schema.prisma
+// Production-level Library Management System Schema
 
 datasource db {
   provider = "postgresql"
 }
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+
+
+// ============================================================================
+// USER MODEL
+// ============================================================================
+// Stores user information with roles
+model User {
+  id        String   @id @default(cuid())
+  email     String   @unique
+  name      String
+  password  String   // Should be hashed with bcrypt
+  role      Role     @default(USER)  // ADMIN or USER
+  
+  // Relations
+  borrows   Borrow[]         // Books borrowed by this user
+  queueEntries QueueEntry[]  // Queue entries for this user
+  fines     Fine[]           // Fines owed by this user
+  
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  
+  @@index([email])  // Speed up login queries
+}
+
+enum Role {
+  ADMIN
+  USER
+}
+
+
+
+
+// ============================================================================
+// BOOK MODEL
+// ============================================================================
+// Stores book information with copy tracking
+model Book {
+  id              String   @id @default(cuid())
+  title           String
+  author          String
+  isbn            String   @unique
+  totalCopies     Int      // Total copies in library
+  availableCopies Int      // Copies available right now
+  
+  // Relations
+  borrows         Borrow[]       // Borrow records for this book
+  queueEntries    QueueEntry[]   // Users waiting for this book
+  
+  // Metadata
+  description     String?
+  publishedYear   Int?
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+  
+  @@index([title])  // Speed up search queries
+  @@index([author])
+  @@index([isbn])
+}
+
+
+
+
+// ============================================================================
+// BORROW MODEL (Core Logic)
+// ============================================================================
+// Tracks who borrowed what and when
+// This is the MOST IMPORTANT table for business logic
+model Borrow {
+  id            String   @id @default(cuid())
+  userId        String
+  bookId        String
+  
+  // Core dates
+  borrowDate    DateTime @default(now())
+  dueDate       DateTime  // Calculated as: borrowDate + 14 days
+  returnDate    DateTime?  // NULL until book is returned
+  
+  // Status tracking
+  status        BorrowStatus @default(ACTIVE)  // ACTIVE or RETURNED
+ 
+  
+  // Relations
+  user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book          Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  fine          Fine?    
+  queueEntry    QueueEntry?
+  // Metadata
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  
+  @@unique([userId, bookId, status])  // Prevent duplicate active borrows
+  @@index([userId])
+  @@index([bookId])
+  @@index([status])
+  @@index([dueDate])  // Fast queries for overdue books
+}
+
+enum BorrowStatus {
+  ACTIVE
+  RETURNED
+}
+
+
+
+
+// ============================================================================
+// QUEUE MODEL (Waiting List - FIFO)
+// ============================================================================
+// When book not available, user joins queue
+// CRITICAL: Must maintain FIFO order
+model QueueEntry {
+  id          String   @id @default(cuid())
+  userId      String
+  bookId      String
+  
+  // Queue position (lower position = earlier in queue)
+  position    Int      // 1, 2, 3, ... (assigned by system)
+  
+  // Status
+  status      QueueStatus @default(WAITING)  // WAITING or FULFILLED
+  borrowId    String?  @unique  // Populated when user's turn comes
+  
+  // Relations
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  book        Book     @relation(fields: [bookId], references: [id], onDelete: Cascade)
+  borrow      Borrow?  @relation(fields: [borrowId], references: [id])
+  
+  // Metadata
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@unique([userId, bookId])  // Can't queue for same book twice
+  @@index([bookId, status, position])  // CRITICAL: For dequeue operations
+  @@index([userId])
+}
+
+enum QueueStatus {
+  WAITING
+  FULFILLED
+  CANCELLED
+}
+
+
+
+
+// ============================================================================
+// FINE MODEL (Late return charges)
+// ============================================================================
+// Tracks fines for overdue books
+model Fine {
+  id          String   @id @default(cuid())
+  borrowId    String   @unique
+  userId      String
+  
+  // Fine calculation
+  daysOverdue Int      // Number of days past due date
+  fineAmount  Float    // In currency units (e.g., dollars)
+  fineRate    Float    // Per day rate (e.g., $0.50/day)
+  
+  // Payment status
+  isPaid      Boolean  @default(false)
+  paidDate    DateTime?
+  
+  // Relations
+  borrow      Borrow   @relation(fields: [borrowId], references: [id], onDelete: Cascade)
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  // Metadata
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@index([userId, isPaid])  // Query user's unpaid fines
+  @@index([createdAt])
+}
+
+
+
+
+// ============================================================================
+// ACTIVITY LOG (Audit trail - Optional but recommended)
+// ============================================================================
+// Track all important actions for debugging + audit
+model ActivityLog {
+  id          String   @id @default(cuid())
+  userId      String
+  action      String   // "BORROW", "RETURN", "FINE_PAID", etc.
+  
+  // Context
+  bookId      String?
+  borrowId    String?
+  metadata    String?  // JSON string for extra data
+  
+  createdAt   DateTime @default(now())
+  
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+}
+
