@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "A production-level backend system built with Node.js, Express, PostgreSQL, and Prisma, designed with clean architecture and real-world scalability in mind.",
   "main": "index.js",
+  "type": "module",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
   },
