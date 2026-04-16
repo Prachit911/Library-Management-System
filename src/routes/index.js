@@ -1,5 +1,5 @@
 import express from 'express';
-import { borrowBookController } from '../controllers/borrow.controller.js';
+import borrowRoutes from './borrowRoutes.js';
 
 const router=express.Router();
 
@@ -7,6 +7,6 @@ router.get('/test',(req,res)=>{
     res.send("This is a test route");
 });
 
-router.post('/borrow', borrowBookController);
+router.use('/', borrowRoutes);
 
 export default router;
