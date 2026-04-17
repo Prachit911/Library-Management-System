@@ -38,7 +38,13 @@ export async function borrowBook(payload) {
   }
 
   return prisma.$transaction(async (tx) => {
-    const [user, book, existingActiveBorrow, existingQueueEntry] = await Promise.all([
+    const [
+      user,
+      book,
+      existingActiveBorrow,
+      existingWaitingQueueEntry,
+      existingQueueEntry
+    ] = await Promise.all([
       tx.user.findUnique({ where: { id: userId }, select: { id: true } }),
       tx.book.findUnique({
         where: { id: bookId },
@@ -53,6 +59,13 @@ export async function borrowBook(payload) {
           userId,
           bookId,
           status: "WAITING"
+        },
+        select: { id: true }
+      }),
+      tx.queueEntry.findFirst({
+        where: {
+          userId,
+          bookId
         },
         select: { id: true }
       })
@@ -74,7 +87,7 @@ export async function borrowBook(payload) {
       );
     }
 
-    if (existingQueueEntry) {
+    if (existingWaitingQueueEntry) {
       throw new BorrowServiceError(
         "User is already waiting in queue for this book.",
         "ALREADY_QUEUED",
@@ -83,21 +96,26 @@ export async function borrowBook(payload) {
     }
 
     if (book.availableCopies > 0) {
-      const borrow = await tx.borrow.create({
-        data: {
-          userId,
-          bookId,
-          dueDate: calculateDueDate(),
-          status: "ACTIVE"
-        }
-      });
-
-      await tx.book.update({
-        where: { id: bookId },
+      const decrementResult = await tx.book.updateMany({
+        where: {
+          id: bookId,
+          availableCopies: { gt: 0 }
+        },
         data: { availableCopies: { decrement: 1 } }
       });
 
-      return { type: "BORROWED", borrow };
+      if (decrementResult.count === 1) {
+        const borrow = await tx.borrow.create({
+          data: {
+            userId,
+            bookId,
+            dueDate: calculateDueDate(),
+            status: "ACTIVE"
+          }
+        });
+
+        return { type: "BORROWED", borrow };
+      }
     }
 
     const lastQueueItem = await tx.queueEntry.findFirst({
@@ -106,14 +124,25 @@ export async function borrowBook(payload) {
       select: { position: true }
     });
 
-    const queueEntry = await tx.queueEntry.create({
-      data: {
-        userId,
-        bookId,
-        position: (lastQueueItem?.position ?? 0) + 1,
-        status: "WAITING"
-      }
-    });
+    const nextPosition = (lastQueueItem?.position ?? 0) + 1;
+
+    const queueEntry = existingQueueEntry
+      ? await tx.queueEntry.update({
+          where: { id: existingQueueEntry.id },
+          data: {
+            position: nextPosition,
+            status: "WAITING",
+            borrowId: null
+          }
+        })
+      : await tx.queueEntry.create({
+          data: {
+            userId,
+            bookId,
+            position: nextPosition,
+            status: "WAITING"
+          }
+        });
 
     return { type: "QUEUED", queueEntry };
   });
