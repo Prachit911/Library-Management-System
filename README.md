@@ -78,7 +78,7 @@ library-management-system/
 │   └── integration/
 │       └── api/
 │
-├── .env                           # Environment variables (NEVER commit!)
+├── .env                           # Environment variables 
 ├── .env.example                   # Template for .env
 ├── .gitignore                     # Ignore node_modules, .env, etc.
 ├── package.json                   # Dependencies and scripts
